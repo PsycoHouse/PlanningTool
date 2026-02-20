@@ -691,12 +691,11 @@
           <details id="cfg">
             <summary>
               <span>Status configuration</span>
-              <span class="muted" style="font-weight:600;font-size:12px;">(flexible)</span>
+              <span class="muted" style="font-weight:600;font-size:12px;">(Draft/Done fixed)</span>
             </summary>
             <div class="configGrid">
               <div class="hint">
-                You can add/remove/rename status columns. Tasks are preserved and moved to the
-                first status if needed.
+                You can add/remove custom status columns. "Draft" stays on the left and "Done" stays on the right.
               </div>
               <div class="row2">
                 <div class="field">
@@ -797,7 +796,9 @@
   <script>
     // ========= Config / Storage =========
     const STORAGE_KEY = "planningTool.v1";
-    const DEFAULT_STATUSES = ["Draft", "To Do", "In Progress", "Done"];
+    const FIXED_LEFT_STATUS = "Draft";
+    const FIXED_RIGHT_STATUS = "Done";
+    const DEFAULT_STATUSES = [FIXED_LEFT_STATUS, "To Do", "In Progress", FIXED_RIGHT_STATUS];
     const DUE_SOON_DAYS = 2; // Reminder: due in <= 2 days
 
     const $ = (sel, el=document) => el.querySelector(sel);
@@ -851,6 +852,21 @@
 
     let state = loadState();
 
+    function normalizeStatuses(){
+      const list = Array.isArray(state.statuses) ? state.statuses : [];
+      const middle = [];
+
+      for(const s of list){
+        if(typeof s !== "string") continue;
+        const name = s.trim();
+        if(!name) continue;
+        if(name === FIXED_LEFT_STATUS || name === FIXED_RIGHT_STATUS) continue;
+        if(!middle.includes(name)) middle.push(name);
+      }
+
+      state.statuses = [FIXED_LEFT_STATUS, ...middle, FIXED_RIGHT_STATUS];
+    }
+
     function applyTheme(){
       document.body.classList.toggle("dark", state.theme === "dark");
       const btn = $("#btnTheme");
@@ -867,6 +883,7 @@
 
     // Ensure every task has valid status:
     function normalizeTasks(){
+      normalizeStatuses();
       const s0 = state.statuses[0] || "Draft";
       const set = new Set(state.statuses);
       for(const t of state.tasks){
@@ -898,13 +915,17 @@
     function renderStatusTags(){
       statusTagsEl.innerHTML = "";
       for(const s of state.statuses){
+        const isFixed = s === FIXED_LEFT_STATUS || s === FIXED_RIGHT_STATUS;
         const tag = document.createElement("div");
         tag.className = "tag";
         tag.innerHTML = `
           <span>${escapeHTML(s)}</span>
-          <button title="Remove status" aria-label="Remove status">✕</button>
+          ${isFixed ? "" : '<button title="Remove status" aria-label="Remove status">✕</button>'}
         `;
-        tag.querySelector("button").addEventListener("click", () => removeStatus(s));
+        const removeBtn = tag.querySelector("button");
+        if(removeBtn){
+          removeBtn.addEventListener("click", () => removeStatus(s));
+        }
         statusTagsEl.appendChild(tag);
       }
     }
@@ -1148,6 +1169,10 @@
     }
 
     function removeStatus(name){
+      if(name === FIXED_LEFT_STATUS || name === FIXED_RIGHT_STATUS){
+        toast("Not possible", `Status "${name}" is fixed and cannot be removed.`, "warn");
+        return;
+      }
       if(state.statuses.length <= 1){
         toast("Not possible", "At least one status must exist.", "warn");
         return;
