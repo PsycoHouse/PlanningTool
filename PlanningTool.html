@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Planning Tool (lokal, cached)</title>
+  <title>Planning Tool (local, cached)</title>
   <style>
     :root{
       --bg: #f6f7fb;
@@ -49,6 +49,54 @@
       align-items:center;
       justify-content:space-between;
       gap: 14px;
+      position: relative;
+    }
+
+    .coinsDisplay{
+      position:absolute;
+      left:50%;
+      transform: translateX(-50%);
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(15,23,42,.12);
+      background: rgba(255,255,255,.88);
+      box-shadow: 0 8px 20px rgba(2,6,23,.10);
+      font-weight: 700;
+      font-size: 13px;
+      z-index:2;
+    }
+
+    body.dark{
+      --bg: #0b1220;
+      --board: #111827;
+      --ink: #e5e7eb;
+      --muted: #9ca3af;
+      --card: #1f2937;
+      --line: rgba(229,231,235,.18);
+    }
+
+    body.dark .btn,
+    body.dark .iconbtn,
+    body.dark .toast,
+    body.dark .tag,
+    body.dark .pill,
+    body.dark input[type="text"],
+    body.dark textarea,
+    body.dark input[type="date"],
+    body.dark select,
+    body.dark .modal,
+    body.dark .coinsDisplay,
+    body.dark .badge{
+      background: #111827;
+      color: #e5e7eb;
+      border-color: rgba(229,231,235,.18);
+    }
+
+    body.dark .trash{
+      background: rgba(239,68,68,.15);
     }
 
     .title{
@@ -155,6 +203,11 @@
     @media (max-width: 620px){
       .columns{ grid-template-columns: 1fr; }
       .toolbar{ justify-content:flex-start; }
+      .coinsDisplay{
+        position:static;
+        transform:none;
+        margin-left:auto;
+      }
     }
 
     .col{
@@ -388,6 +441,52 @@
       border: 1px solid rgba(15,23,42,.10);
       box-shadow: 0 20px 60px rgba(2,6,23,.35);
       overflow:hidden;
+      position:relative;
+    }
+    .modal.wide{ width:min(760px, 100%); }
+    .iconClose{
+      position:absolute;
+      top: 10px;
+      right: 10px;
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: 1px solid rgba(15,23,42,.12);
+      background: #fff;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      color: rgba(15,23,42,.7);
+    }
+    .statsChart{
+      display:grid;
+      gap: 10px;
+      max-height: 340px;
+      overflow:auto;
+      padding: 4px 2px;
+    }
+    .chartRow{
+      display:grid;
+      grid-template-columns: 130px 1fr auto;
+      align-items:center;
+      gap: 10px;
+      font-size: 12px;
+    }
+    .barWrap{
+      height: 16px;
+      border-radius: 999px;
+      background: rgba(15,23,42,.08);
+      overflow: hidden;
+    }
+    .bar{
+      height:100%;
+      background: linear-gradient(90deg, rgba(37,99,235,.75), rgba(16,185,129,.75));
+      min-width: 2px;
+    }
+    .statsControls{
+      display:flex;
+      gap: 8px;
+      margin-bottom: 4px;
     }
     .modalHead{
       padding: 14px 16px 12px;
@@ -564,15 +663,22 @@
 <body>
   <header>
     <div class="title">
-      <h1>Planning Tool (lokal, cached)</h1>
-      <p>Drag & Drop Kanban • Speicherung im Browser • Erinnerungen bei Fälligkeit</p>
+      <h1>Planning Tool (local, cached)</h1>
+      <p>Drag & Drop Kanban • Browser storage • Due date reminders</p>
+    </div>
+
+    <div class="coinsDisplay" id="coinsDisplay" title="Reward coins">
+      <span>🪙</span>
+      <span id="coinsCount">0</span>
     </div>
 
     <div class="toolbar">
-      <button class="btn primary" id="btnNew">+ Neues ToDo</button>
+      <button class="btn primary" id="btnNew">+ New ToDo</button>
+      <button class="btn" id="btnTheme">Dark mode: Off</button>
+      <button class="btn" id="btnStats">Weekly Done Stats</button>
       <button class="btn" id="btnExport">Export JSON</button>
       <button class="btn" id="btnImport">Import JSON</button>
-      <button class="btn ghost" id="btnReset" title="Löscht alles lokal">Reset</button>
+      <button class="btn ghost" id="btnReset" title="Deletes everything stored locally">Reset</button>
     </div>
   </header>
 
@@ -583,23 +689,23 @@
         <div class="trashBar">
           <details id="cfg">
             <summary>
-              <span>Status-Konfiguration</span>
-              <span class="muted" style="font-weight:600;font-size:12px;">(flexibel)</span>
+              <span>Status configuration</span>
+              <span class="muted" style="font-weight:600;font-size:12px;">(flexible)</span>
             </summary>
             <div class="configGrid">
               <div class="hint">
-                Du kannst Status-Spalten hinzufügen/entfernen/umbenennen. Tasks bleiben erhalten und wechseln bei Bedarf
-                in den ersten Status.
+                You can add/remove/rename status columns. Tasks are preserved and moved to the
+                first status if needed.
               </div>
               <div class="row2">
                 <div class="field">
-                  <label for="newStatusName">Neuen Status hinzufügen</label>
-                  <input id="newStatusName" type="text" placeholder='z. B. "Blocked"' />
+                  <label for="newStatusName">Add new status</label>
+                  <input id="newStatusName" type="text" placeholder='e.g. "Blocked"' />
                 </div>
-                <button class="btn" id="btnAddStatus">Hinzufügen</button>
+                <button class="btn" id="btnAddStatus">Add</button>
               </div>
               <div class="field">
-                <label>Aktuelle Status</label>
+                <label>Current statuses</label>
                 <div class="tags" id="statusTags"></div>
               </div>
             </div>
@@ -607,10 +713,10 @@
 
           <div class="trash" id="trash">
             <div>
-              <strong>🗑️ Mülleimer</strong><br/>
-              <span>Zieh ToDos hier rein, um sie zu löschen</span>
+              <strong>🗑️ Trash</strong><br/>
+              <span>Drag ToDos here to delete them</span>
             </div>
-            <div class="trashDrop">Drop zum Löschen</div>
+            <div class="trashDrop">Drop to delete</div>
           </div>
         </div>
 
@@ -625,22 +731,22 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modalHead">
         <h2 id="modalTitle">ToDo</h2>
-        <button class="btn" id="btnCloseModal">Schließen</button>
+        <button class="btn" id="btnCloseModal">Close</button>
       </div>
       <div class="modalBody">
         <div class="field">
-          <label for="taskTitle">Titel</label>
-          <input id="taskTitle" type="text" placeholder="Kurz & klar…" />
+          <label for="taskTitle">Title</label>
+          <input id="taskTitle" type="text" placeholder="Short & clear…" />
         </div>
 
         <div class="field">
-          <label for="taskDesc">Beschreibung (optional)</label>
-          <textarea id="taskDesc" placeholder="Details, Links, Notizen…"></textarea>
+          <label for="taskDesc">Description (optional)</label>
+          <textarea id="taskDesc" placeholder="Details, links, notes…"></textarea>
         </div>
 
         <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="field">
-            <label for="taskDue">Fällig am (optional)</label>
+            <label for="taskDue">Due date (optional)</label>
             <input id="taskDue" type="date" />
           </div>
           <div class="field">
@@ -650,14 +756,31 @@
         </div>
 
         <div class="hint">
-          Tipp: Du kannst Tasks später jederzeit per Drag & Drop verschieben oder über „Bearbeiten“ ändern.
+          Tip: You can always move tasks later via drag & drop or update them with “Edit”.
         </div>
       </div>
 
       <div class="modalFoot">
-        <button class="btn ghost" id="btnDeleteTask" style="border-color: rgba(239,68,68,.25);">Löschen</button>
-        <button class="btn" id="btnCancel">Abbrechen</button>
-        <button class="btn primary" id="btnSave">Speichern</button>
+        <button class="btn ghost" id="btnDeleteTask" style="border-color: rgba(239,68,68,.25);">Delete</button>
+        <button class="btn" id="btnCancel">Cancel</button>
+        <button class="btn primary" id="btnSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="statsOverlay" aria-hidden="true">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+      <button class="iconClose" id="btnCloseStats" aria-label="Close">×</button>
+      <div class="modalHead">
+        <h2 id="statsTitle">Done ToDos per week</h2>
+      </div>
+      <div class="modalBody">
+        <div class="statsControls">
+          <button class="btn" id="btnStatsWeek">Week</button>
+          <button class="btn" id="btnStatsMonth">Month</button>
+        </div>
+        <p class="hint" id="statsHint">Shows how many ToDos reached the status "Done" each week.</p>
+        <div class="statsChart" id="statsChart"></div>
       </div>
     </div>
   </div>
@@ -669,8 +792,9 @@
   <script>
     // ========= Config / Storage =========
     const STORAGE_KEY = "planningTool.v1";
-    const DEFAULT_STATUSES = ["Draft", "Zu Erledigen", "In Progress", "Done"];
-    const DUE_SOON_DAYS = 2; // Reminder: fällig in <= 2 Tagen
+    const THEME_KEY = "planningTool.theme";
+    const DEFAULT_STATUSES = ["Draft", "To Do", "In Progress", "Done"];
+    const DUE_SOON_DAYS = 2; // Reminder: due in <= 2 days
 
     const $ = (sel, el=document) => el.querySelector(sel);
 
@@ -702,15 +826,16 @@
       try{
         const raw = localStorage.getItem(STORAGE_KEY);
         if(!raw){
-          return { statuses: [...DEFAULT_STATUSES], tasks: [] };
+          return { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0 };
         }
         const data = JSON.parse(raw);
         // basic hardening:
         const statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
         const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-        return { statuses, tasks };
+        const coins = Number.isFinite(data.coins) ? data.coins : 0;
+        return { statuses, tasks, coins };
       } catch {
-        return { statuses: [...DEFAULT_STATUSES], tasks: [] };
+        return { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0 };
       }
     }
 
@@ -744,7 +869,12 @@
       normalizeTasks();
       renderStatusTags();
       renderColumns();
+      renderCoins();
       saveState();
+    }
+
+    function renderCoins(){
+      $("#coinsCount").textContent = String(state.coins || 0);
     }
 
     function renderStatusTags(){
@@ -754,7 +884,7 @@
         tag.className = "tag";
         tag.innerHTML = `
           <span>${escapeHTML(s)}</span>
-          <button title="Status entfernen" aria-label="Status entfernen">✕</button>
+          <button title="Remove status" aria-label="Remove status">✕</button>
         `;
         tag.querySelector("button").addEventListener("click", () => removeStatus(s));
         statusTagsEl.appendChild(tag);
@@ -820,7 +950,7 @@
 
       card.innerHTML = `
         <div class="card-top">
-          <h3 class="card-title">${escapeHTML(task.title || "(ohne Titel)")}</h3>
+          <h3 class="card-title">${escapeHTML(task.title || "(untitled)")}</h3>
         </div>
         <div class="card-meta">
           ${statusPill}
@@ -828,8 +958,8 @@
         </div>
         ${task.desc ? `<p class="card-desc">${escapeHTML(task.desc)}</p>` : ""}
         <div class="card-actions">
-          <button class="iconbtn" data-action="edit">Bearbeiten</button>
-          <button class="iconbtn" data-action="delete">Löschen</button>
+          <button class="iconbtn" data-action="edit">Edit</button>
+          <button class="iconbtn" data-action="delete">Delete</button>
         </div>
       `;
 
@@ -919,6 +1049,7 @@
     function moveTask(id, status){
       const t = state.tasks.find(x=>x.id===id);
       if(!t) return;
+      trackDoneTransition(t, status);
       t.status = status;
       render();
     }
@@ -941,8 +1072,19 @@
     function updateTask(id, patch){
       const t = state.tasks.find(x=>x.id===id);
       if(!t) return;
+      trackDoneTransition(t, patch.status || t.status);
       Object.assign(t, patch);
       render();
+    }
+
+    function trackDoneTransition(task, nextStatus){
+      const doneStatus = "Done";
+      if(task.status !== doneStatus && nextStatus === doneStatus){
+        if(!Array.isArray(task.doneHistory)) task.doneHistory = [];
+        task.doneHistory.push(todayLocalISO());
+        state.coins = (state.coins || 0) + 3;
+        toast("Reward", "You earned 3 coins for completing a task!", "ok");
+      }
     }
 
     function deleteTask(id, opts={}){
@@ -970,14 +1112,14 @@
     function addStatus(name){
       const s = (name || "").trim();
       if(!s) return;
-      if(state.statuses.includes(s)) return toast("Info", `Status "${s}" existiert bereits.`, "warn");
+      if(state.statuses.includes(s)) return toast("Info", `Status "${s}" already exists.`, "warn");
       state.statuses.push(s);
       render();
     }
 
     function removeStatus(name){
       if(state.statuses.length <= 1){
-        toast("Nicht möglich", "Mindestens ein Status muss existieren.", "warn");
+        toast("Not possible", "At least one status must exist.", "warn");
         return;
       }
       const idx = state.statuses.indexOf(name);
@@ -990,7 +1132,7 @@
       }
       state.statuses.splice(idx, 1);
       render();
-      toast("Status entfernt", `Tasks wurden nach "${fallback}" verschoben.`, "warn");
+      toast("Status removed", `Tasks were moved to "${fallback}".`, "warn");
     }
 
     // ========= Modal =========
@@ -1010,7 +1152,7 @@
       editingId = id;
 
       if(mode === "new"){
-        modalTitle.textContent = "Neues ToDo";
+        modalTitle.textContent = "New ToDo";
         taskTitle.value = "";
         taskDesc.value = "";
         taskDue.value = "";
@@ -1019,7 +1161,7 @@
       } else {
         const t = state.tasks.find(x=>x.id===id);
         if(!t) return;
-        modalTitle.textContent = "ToDo bearbeiten";
+        modalTitle.textContent = "Edit ToDo";
         taskTitle.value = t.title || "";
         taskDesc.value = t.desc || "";
         taskDue.value = t.due || "";
@@ -1050,17 +1192,17 @@
       const status = taskStatus.value;
 
       if(!title){
-        toast("Fehlt noch", "Bitte gib einen Titel ein.", "warn");
+        toast("Missing input", "Please enter a title.", "warn");
         taskTitle.focus();
         return;
       }
 
       if(modalMode === "new"){
         addTask({title, desc, due, status});
-        toast("Gespeichert", `"${title}" wurde erstellt.`, "ok");
+        toast("Saved", `"${title}" was created.`, "ok");
       } else if(editingId){
         updateTask(editingId, {title, desc, due, status});
-        toast("Aktualisiert", `"${title}" wurde aktualisiert.`, "ok");
+        toast("Updated", `"${title}" was updated.`, "ok");
       }
 
       closeModal();
@@ -1071,7 +1213,7 @@
       const t = state.tasks.find(x=>x.id===editingId);
       deleteTask(editingId);
       closeModal();
-      toast("Gelöscht", t ? `"${t.title}" wurde entfernt.` : "Task entfernt.", "danger");
+      toast("Deleted", t ? `"${t.title}" was removed.` : "Task removed.", "danger");
     });
 
     // ========= Export / Import / Reset =========
@@ -1082,7 +1224,7 @@
       a.download = `planning-tool-export-${todayLocalISO()}.json`;
       a.click();
       URL.revokeObjectURL(a.href);
-      toast("Export", "JSON wurde heruntergeladen.", "ok");
+      toast("Export", "JSON was downloaded.", "ok");
     });
 
     const fileInput = $("#fileInput");
@@ -1093,29 +1235,117 @@
       try{
         const text = await file.text();
         const data = JSON.parse(text);
-        if(!data || typeof data !== "object") throw new Error("Ungültiges JSON");
+        if(!data || typeof data !== "object") throw new Error("Invalid JSON");
         const statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
         const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-        state = { statuses, tasks };
+        const coins = Number.isFinite(data.coins) ? data.coins : 0;
+        state = { statuses, tasks, coins };
         normalizeTasks();
         saveState();
         render();
-        toast("Import", "Daten wurden importiert.", "ok");
+        toast("Import", "Data was imported.", "ok");
       } catch (e){
-        toast("Import fehlgeschlagen", String(e?.message || e), "danger");
+        toast("Import failed", String(e?.message || e), "danger");
       } finally {
         fileInput.value = "";
       }
     });
 
     $("#btnReset").addEventListener("click", ()=>{
-      const yes = confirm("Wirklich alles lokal löschen? (Kann nicht rückgängig gemacht werden)");
+      const yes = confirm("Delete all local data? (Cannot be undone)");
       if(!yes) return;
       localStorage.removeItem(STORAGE_KEY);
-      state = { statuses: [...DEFAULT_STATUSES], tasks: [] };
+      state = { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0 };
       render();
-      toast("Reset", "Alles wurde zurückgesetzt.", "warn");
+      toast("Reset", "Everything was reset.", "warn");
     });
+
+    // ========= Stats =========
+    const statsOverlay = $("#statsOverlay");
+    const statsChart = $("#statsChart");
+    let statsMode = "week";
+
+    function getWeekStartISO(isoDate){
+      const d = parseISODate(isoDate);
+      if(!d) return null;
+      const day = (d.getDay() + 6) % 7; // Monday = 0
+      d.setDate(d.getDate() - day);
+      return d.toISOString().slice(0,10);
+    }
+
+    function renderDoneStats(){
+      const groupedCounts = new Map();
+      for(const task of state.tasks){
+        const dates = Array.isArray(task.doneHistory) ? task.doneHistory : [];
+        for(const dt of dates){
+          const key = statsMode === "month" ? dt.slice(0,7) : getWeekStartISO(dt);
+          if(!key) continue;
+          groupedCounts.set(key, (groupedCounts.get(key) || 0) + 1);
+        }
+      }
+
+      const entries = [...groupedCounts.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
+      if(!entries.length){
+        statsChart.innerHTML = `<p class="muted">No completed ToDos yet.</p>`;
+        return;
+      }
+
+      const max = Math.max(...entries.map(([,count])=>count), 1);
+      statsChart.innerHTML = entries.map(([label, count])=>{
+        const pct = Math.max((count / max) * 100, 3);
+        return `
+          <div class="chartRow">
+            <span>${escapeHTML(label)}</span>
+            <div class="barWrap"><div class="bar" style="width:${pct}%;"></div></div>
+            <strong>${count}</strong>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function openStats(){
+      renderDoneStats();
+      statsOverlay.classList.add("open");
+      statsOverlay.setAttribute("aria-hidden", "false");
+    }
+
+    function closeStats(){
+      statsOverlay.classList.remove("open");
+      statsOverlay.setAttribute("aria-hidden", "true");
+    }
+
+    $("#btnStats").addEventListener("click", openStats);
+    $("#btnCloseStats").addEventListener("click", closeStats);
+    statsOverlay.addEventListener("click", (e)=> { if(e.target === statsOverlay) closeStats(); });
+    $("#btnStatsWeek").addEventListener("click", ()=>{
+      statsMode = "week";
+      $("#statsTitle").textContent = "Done ToDos per week";
+      $("#statsHint").textContent = 'Shows how many ToDos reached the status "Done" each week.';
+      renderDoneStats();
+    });
+    $("#btnStatsMonth").addEventListener("click", ()=>{
+      statsMode = "month";
+      $("#statsTitle").textContent = "Done ToDos per month";
+      $("#statsHint").textContent = 'Shows how many ToDos reached the status "Done" each month.';
+      renderDoneStats();
+    });
+
+    // ========= Theme =========
+    function loadTheme(){
+      const mode = localStorage.getItem(THEME_KEY) || "light";
+      document.body.classList.toggle("dark", mode === "dark");
+      $("#btnTheme").textContent = `Dark mode: ${mode === "dark" ? "On" : "Off"}`;
+    }
+
+    function toggleTheme(){
+      const dark = !document.body.classList.contains("dark");
+      document.body.classList.toggle("dark", dark);
+      const mode = dark ? "dark" : "light";
+      localStorage.setItem(THEME_KEY, mode);
+      $("#btnTheme").textContent = `Dark mode: ${dark ? "On" : "Off"}`;
+    }
+
+    $("#btnTheme").addEventListener("click", toggleTheme);
 
     // ========= Config UI =========
     $("#btnAddStatus").addEventListener("click", ()=>{
@@ -1145,7 +1375,7 @@
         </div>
         <p class="msg">${escapeHTML(msg)}</p>
         <div class="row">
-          ${opts.focusId ? `<button class="tiny" data-focus="1">Anzeigen</button>` : ""}
+          ${opts.focusId ? `<button class="tiny" data-focus="1">Show</button>` : ""}
           <button class="tiny" data-close="1">OK</button>
         </div>
       `;
@@ -1175,7 +1405,7 @@
       // Switch to its column (already visible) and briefly highlight
       const el = document.querySelector(`.card[data-id="${cssEscape(id)}"]`);
       if(!el){
-        toast("Nicht gefunden", "Task ist nicht mehr vorhanden.", "warn");
+        toast("Not found", "Task no longer exists.", "warn");
         return;
       }
       el.scrollIntoView({behavior:"smooth", block:"center"});
@@ -1212,13 +1442,13 @@
       let shown = 0;
       for(const item of overdue){
         if(shown >= MAX) break;
-        toast("Überfällig", `"${item.t.title}" war fällig am ${item.t.due}.`, "danger", {focusId: item.t.id, sticky: false});
+        toast("Overdue", `"${item.t.title}" was due on ${item.t.due}.`, "danger", {focusId: item.t.id, sticky: false});
         shown++;
       }
       for(const item of soon){
         if(shown >= MAX) break;
-        const when = item.diff === 0 ? "heute" : (item.diff === 1 ? "morgen" : `in ${item.diff} Tagen`);
-        toast("Bald fällig", `"${item.t.title}" ist ${when} fällig (${item.t.due}).`, "warn", {focusId: item.t.id, sticky: false});
+        const when = item.diff === 0 ? "today" : (item.diff === 1 ? "tomorrow" : `in ${item.diff} days`);
+        toast("Due soon", `"${item.t.title}" is due ${when} (${item.t.due}).`, "warn", {focusId: item.t.id, sticky: false});
         shown++;
       }
     }
@@ -1241,6 +1471,7 @@
 
     // ========= Initial render =========
     render();
+    loadTheme();
     showDueRemindersOnLoad();
   </script>
 </body>
