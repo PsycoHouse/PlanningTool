@@ -29,6 +29,17 @@
       --toastW: 360px;
     }
 
+    body.dark{
+      --bg: #0b1220;
+      --board: #121b2d;
+      --ink: #e2e8f0;
+      --muted: #94a3b8;
+      --line: rgba(226,232,240,.15);
+      --card: #16233a;
+      --shadow: 0 14px 34px rgba(0,0,0,.42);
+      --shadow-inset: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 0 rgba(0,0,0,.22);
+    }
+
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
@@ -49,6 +60,28 @@
       align-items:center;
       justify-content:space-between;
       gap: 14px;
+      position:relative;
+    }
+
+    .centerHud{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+    }
+    .coinBadge{
+      background: var(--card);
+      border:1px solid rgba(15,23,42,.14);
+      border-radius:999px;
+      padding: 7px 12px;
+      box-shadow: 0 10px 18px rgba(2,6,23,.12);
+      font-weight:700;
+      font-size:13px;
+      color: var(--ink);
+      white-space:nowrap;
     }
 
     .title{
@@ -106,6 +139,37 @@
       box-shadow:none;
     }
 
+    .statsModes{
+      display:flex;
+      gap:8px;
+    }
+    .btn.active{
+      background: rgba(37,99,235,.12);
+      border-color: rgba(37,99,235,.45);
+      color: #1d4ed8;
+    }
+
+    body.dark .btn,
+    body.dark .iconbtn,
+    body.dark .pill,
+    body.dark .badge,
+    body.dark .coinBadge,
+    body.dark .tag,
+    body.dark .toast,
+    body.dark .modal,
+    body.dark input[type="text"],
+    body.dark textarea,
+    body.dark input[type="date"],
+    body.dark select,
+    body.dark .tiny{
+      background: #1c2940;
+      color: var(--ink);
+      border-color: rgba(148,163,184,.35);
+    }
+    body.dark .col{ background: rgba(15,23,42,.35); }
+    body.dark .trash{ background: rgba(127,29,29,.2); }
+    body.dark .btn.active{ color: #bfdbfe; }
+
     .wrap{
       max-width: 1200px;
       margin: 0 auto;
@@ -155,6 +219,7 @@
     @media (max-width: 620px){
       .columns{ grid-template-columns: 1fr; }
       .toolbar{ justify-content:flex-start; }
+      .centerHud{ position:static; transform:none; width:100%; justify-content:flex-start; order: 3; }
     }
 
     .col{
@@ -609,9 +674,14 @@
       <p>Drag & Drop Kanban • Browser storage • Due date reminders</p>
     </div>
 
+    <div class="centerHud">
+      <div class="coinBadge" id="coinBadge">🪙 0 Coins</div>
+    </div>
+
     <div class="toolbar">
+      <button class="btn" id="btnTheme">🌙 Dark mode</button>
       <button class="btn primary" id="btnNew">+ New ToDo</button>
-      <button class="btn" id="btnStats">Weekly Done Stats</button>
+      <button class="btn" id="btnStats">Done Stats</button>
       <button class="btn" id="btnExport">Export JSON</button>
       <button class="btn" id="btnImport">Import JSON</button>
       <button class="btn ghost" id="btnReset" title="Deletes everything stored locally">Reset</button>
@@ -708,7 +778,11 @@
     <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
       <button class="iconClose" id="btnCloseStats" aria-label="Close">×</button>
       <div class="modalHead">
-        <h2 id="statsTitle">Done ToDos per week</h2>
+        <h2 id="statsTitle">Done ToDos statistics</h2>
+        <div class="statsModes">
+          <button class="btn active" id="btnStatsWeek">Week</button>
+          <button class="btn" id="btnStatsMonth">Month</button>
+        </div>
       </div>
       <div class="modalBody">
         <p class="hint" id="statsHint">Shows how many ToDos reached the status "Done" each week.</p>
@@ -757,15 +831,18 @@
       try{
         const raw = localStorage.getItem(STORAGE_KEY);
         if(!raw){
-          return { statuses: [...DEFAULT_STATUSES], tasks: [] };
+          return { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0, theme: "light", statsMode: "week" };
         }
         const data = JSON.parse(raw);
         // basic hardening:
         const statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
         const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-        return { statuses, tasks };
+        const coins = Number.isFinite(data.coins) ? Math.max(0, Math.floor(data.coins)) : 0;
+        const theme = data.theme === "dark" ? "dark" : "light";
+        const statsMode = data.statsMode === "month" ? "month" : "week";
+        return { statuses, tasks, coins, theme, statsMode };
       } catch {
-        return { statuses: [...DEFAULT_STATUSES], tasks: [] };
+        return { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0, theme: "light", statsMode: "week" };
       }
     }
 
@@ -774,6 +851,20 @@
     }
 
     let state = loadState();
+
+    function applyTheme(){
+      document.body.classList.toggle("dark", state.theme === "dark");
+      const btn = $("#btnTheme");
+      if(btn){
+        btn.textContent = state.theme === "dark" ? "☀️ Light mode" : "🌙 Dark mode";
+      }
+    }
+
+    function renderCoins(){
+      const badge = $("#coinBadge");
+      if(!badge) return;
+      badge.textContent = `🪙 ${state.coins || 0} Coins`;
+    }
 
     // Ensure every task has valid status:
     function normalizeTasks(){
@@ -786,6 +877,7 @@
         if(typeof t.due !== "string") t.due = "";
         if(typeof t.id !== "string") t.id = uid();
         if(typeof t.createdAt !== "number") t.createdAt = Date.now();
+        if(!Array.isArray(t.doneHistory)) t.doneHistory = [];
       }
     }
     normalizeTasks();
@@ -799,6 +891,8 @@
       normalizeTasks();
       renderStatusTags();
       renderColumns();
+      renderCoins();
+      applyTheme();
       saveState();
     }
 
@@ -974,8 +1068,11 @@
     function moveTask(id, status){
       const t = state.tasks.find(x=>x.id===id);
       if(!t) return;
-      trackDoneTransition(t, status);
+      const becameDone = trackDoneTransition(t, status);
       t.status = status;
+      if(becameDone){
+        rewardTaskDone(t);
+      }
       render();
     }
 
@@ -997,8 +1094,12 @@
     function updateTask(id, patch){
       const t = state.tasks.find(x=>x.id===id);
       if(!t) return;
-      trackDoneTransition(t, patch.status || t.status);
+      const nextStatus = patch.status || t.status;
+      const becameDone = trackDoneTransition(t, nextStatus);
       Object.assign(t, patch);
+      if(becameDone){
+        rewardTaskDone(t);
+      }
       render();
     }
 
@@ -1007,7 +1108,14 @@
       if(task.status !== doneStatus && nextStatus === doneStatus){
         if(!Array.isArray(task.doneHistory)) task.doneHistory = [];
         task.doneHistory.push(todayLocalISO());
+        return true;
       }
+      return false;
+    }
+
+    function rewardTaskDone(task){
+      state.coins = (state.coins || 0) + 3;
+      toast("Belohnung", `"${task.title || "(untitled)"}" erledigt: +3 Coins`, "ok");
     }
 
     function deleteTask(id, opts={}){
@@ -1104,6 +1212,11 @@
     }
 
     $("#btnNew").addEventListener("click", ()=> openModal("new"));
+    $("#btnTheme").addEventListener("click", ()=>{
+      state.theme = state.theme === "dark" ? "light" : "dark";
+      applyTheme();
+      saveState();
+    });
     $("#btnCloseModal").addEventListener("click", closeModal);
     $("#btnCancel").addEventListener("click", closeModal);
     overlay.addEventListener("click", (e)=> { if(e.target === overlay) closeModal(); });
@@ -1161,7 +1274,10 @@
         if(!data || typeof data !== "object") throw new Error("Invalid JSON");
         const statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
         const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-        state = { statuses, tasks };
+        const coins = Number.isFinite(data.coins) ? Math.max(0, Math.floor(data.coins)) : 0;
+        const theme = data.theme === "dark" ? "dark" : state.theme;
+        const statsMode = data.statsMode === "month" ? "month" : "week";
+        state = { statuses, tasks, coins, theme, statsMode };
         normalizeTasks();
         saveState();
         render();
@@ -1177,7 +1293,7 @@
       const yes = confirm("Delete all local data? (Cannot be undone)");
       if(!yes) return;
       localStorage.removeItem(STORAGE_KEY);
-      state = { statuses: [...DEFAULT_STATUSES], tasks: [] };
+      state = { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0, theme: state.theme, statsMode: "week" };
       render();
       toast("Reset", "Everything was reset.", "warn");
     });
@@ -1194,29 +1310,37 @@
       return d.toISOString().slice(0,10);
     }
 
+    function getMonthStartISO(isoDate){
+      const d = parseISODate(isoDate);
+      if(!d) return null;
+      d.setDate(1);
+      return d.toISOString().slice(0,7);
+    }
+
     function renderDoneStats(){
-      const weekCounts = new Map();
+      const counts = new Map();
+      const useMonth = state.statsMode === "month";
       for(const task of state.tasks){
         const dates = Array.isArray(task.doneHistory) ? task.doneHistory : [];
         for(const dt of dates){
-          const week = getWeekStartISO(dt);
-          if(!week) continue;
-          weekCounts.set(week, (weekCounts.get(week) || 0) + 1);
+          const key = useMonth ? getMonthStartISO(dt) : getWeekStartISO(dt);
+          if(!key) continue;
+          counts.set(key, (counts.get(key) || 0) + 1);
         }
       }
 
-      const entries = [...weekCounts.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
+      const entries = [...counts.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
       if(!entries.length){
         statsChart.innerHTML = `<p class="muted">No completed ToDos yet.</p>`;
         return;
       }
 
       const max = Math.max(...entries.map(([,count])=>count), 1);
-      statsChart.innerHTML = entries.map(([week, count])=>{
+      statsChart.innerHTML = entries.map(([label, count])=>{
         const pct = Math.max((count / max) * 100, 3);
         return `
           <div class="chartRow">
-            <span>${escapeHTML(week)}</span>
+            <span>${escapeHTML(label)}</span>
             <div class="barWrap"><div class="bar" style="width:${pct}%;"></div></div>
             <strong>${count}</strong>
           </div>
@@ -1224,7 +1348,18 @@
       }).join("");
     }
 
+    function updateStatsModeButtons(){
+      const weekBtn = $("#btnStatsWeek");
+      const monthBtn = $("#btnStatsMonth");
+      weekBtn.classList.toggle("active", state.statsMode === "week");
+      monthBtn.classList.toggle("active", state.statsMode === "month");
+      $("#statsHint").textContent = state.statsMode === "month"
+        ? 'Shows how many ToDos reached the status "Done" each month.'
+        : 'Shows how many ToDos reached the status "Done" each week.';
+    }
+
     function openStats(){
+      updateStatsModeButtons();
       renderDoneStats();
       statsOverlay.classList.add("open");
       statsOverlay.setAttribute("aria-hidden", "false");
@@ -1238,6 +1373,18 @@
     $("#btnStats").addEventListener("click", openStats);
     $("#btnCloseStats").addEventListener("click", closeStats);
     statsOverlay.addEventListener("click", (e)=> { if(e.target === statsOverlay) closeStats(); });
+    $("#btnStatsWeek").addEventListener("click", ()=>{
+      state.statsMode = "week";
+      updateStatsModeButtons();
+      renderDoneStats();
+      saveState();
+    });
+    $("#btnStatsMonth").addEventListener("click", ()=>{
+      state.statsMode = "month";
+      updateStatsModeButtons();
+      renderDoneStats();
+      saveState();
+    });
 
     // ========= Config UI =========
     $("#btnAddStatus").addEventListener("click", ()=>{
