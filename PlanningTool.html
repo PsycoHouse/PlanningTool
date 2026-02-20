@@ -1128,9 +1128,11 @@
 
     function trackDoneTransition(task, nextStatus){
       const doneStatus = "Done";
-      if(task.status !== doneStatus && nextStatus === doneStatus){
+      const hasBeenDone = task.doneRewarded === true || (Array.isArray(task.doneHistory) && task.doneHistory.length > 0);
+      if(task.status !== doneStatus && nextStatus === doneStatus && !hasBeenDone){
         if(!Array.isArray(task.doneHistory)) task.doneHistory = [];
         task.doneHistory.push(todayLocalISO());
+        task.doneRewarded = true;
         return true;
       }
       return false;
@@ -1349,11 +1351,11 @@
       const useMonth = state.statsMode === "month";
       for(const task of state.tasks){
         const dates = Array.isArray(task.doneHistory) ? task.doneHistory : [];
-        for(const dt of dates){
-          const key = useMonth ? getMonthStartISO(dt) : getWeekStartISO(dt);
-          if(!key) continue;
-          counts.set(key, (counts.get(key) || 0) + 1);
-        }
+        const firstDoneDate = dates[0];
+        if(!firstDoneDate) continue;
+        const key = useMonth ? getMonthStartISO(firstDoneDate) : getWeekStartISO(firstDoneDate);
+        if(!key) continue;
+        counts.set(key, (counts.get(key) || 0) + 1);
       }
 
       const entries = [...counts.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
