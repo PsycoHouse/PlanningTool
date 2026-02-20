@@ -63,14 +63,13 @@
       position:relative;
     }
 
-    .centerHud{
-      position:absolute;
-      left:50%;
-      transform:translateX(-50%);
+    .coinsFooter{
+      max-width: 1200px;
+      margin: 10px auto 0;
+      padding: 0 18px 18px;
       display:flex;
       align-items:center;
       justify-content:center;
-      pointer-events:none;
     }
     .coinBadge{
       background: var(--card);
@@ -219,7 +218,7 @@
     @media (max-width: 620px){
       .columns{ grid-template-columns: 1fr; }
       .toolbar{ justify-content:flex-start; }
-      .centerHud{ position:static; transform:none; width:100%; justify-content:flex-start; order: 3; }
+      .coinsFooter{ justify-content:flex-start; }
     }
 
     .col{
@@ -674,10 +673,6 @@
       <p>Drag & Drop Kanban • Browser storage • Due date reminders</p>
     </div>
 
-    <div class="centerHud">
-      <div class="coinBadge" id="coinBadge">🪙 0 Coins</div>
-    </div>
-
     <div class="toolbar">
       <button class="btn" id="btnTheme">🌙 Dark mode</button>
       <button class="btn primary" id="btnNew">+ New ToDo</button>
@@ -730,6 +725,10 @@
 
       </div>
     </div>
+  </div>
+
+  <div class="coinsFooter">
+    <div class="coinBadge" id="coinBadge">🪙 0 Coins</div>
   </div>
 
   <!-- Modal: create/edit -->
