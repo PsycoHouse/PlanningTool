@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Planning Tool Shop</title>
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --line:rgba(15,23,42,.12);
+      --accent:#2563eb;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: var(--bg);
+      color: var(--ink);
+      min-height:100vh;
+      padding: 22px;
+    }
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+    }
+    .hero{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 12px 28px rgba(2,6,23,.08);
+      margin-bottom: 14px;
+    }
+    h1{margin:0 0 8px;font-size:24px}
+    p{margin:0;color:var(--muted)}
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .slot{
+      background: var(--card);
+      border: 1px dashed rgba(37,99,235,.35);
+      border-radius: 14px;
+      min-height: 130px;
+      padding: 14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      color: var(--muted);
+      font-weight:600;
+    }
+    .note{
+      margin-top:12px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    a{
+      color:var(--accent);
+      text-decoration:none;
+      font-weight:600;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>🛍️ Shop (coming soon)</h1>
+      <p>This page is prepared for future shop items like pictures, icons and models that can be bought with coins.</p>
+      <div class="grid">
+        <div class="slot">Picture items placeholder</div>
+        <div class="slot">Icon packs placeholder</div>
+        <div class="slot">Model items placeholder</div>
+      </div>
+      <p class="note">Tip: Keep shop files in this separate <code>shop/</code> folder and add item data manually later.</p>
+      <p class="note"><a href="../PlanningTool.html">← Back to Planning Tool</a></p>
+    </section>
+  </main>
+</body>
+</html>
