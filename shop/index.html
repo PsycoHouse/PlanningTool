@@ -136,25 +136,30 @@
     }
 
     async function listFolderImages(folderUrl) {
-      const response = await fetch(folderUrl);
-      if (!response.ok) {
+      try {
+        const response = await fetch(folderUrl);
+        if (!response.ok) {
+          return [];
+        }
+
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const links = [...doc.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+        const folderBase = new URL(folderUrl, window.location.href);
+
+        const imageLinks = links
+          .map((href) => ({
+            href,
+            fileName: normalizeFileName(href)
+          }))
+          .filter(({ fileName }) => isImageFile(fileName))
+          .map(({ href }) => new URL(href, folderBase).toString());
+
+        return [...new Set(imageLinks)].sort((a, b) => a.localeCompare(b));
+      } catch {
         return [];
       }
-
-      const html = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const links = [...doc.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
-
-      const imageLinks = links
-        .map((href) => ({
-          href,
-          fileName: normalizeFileName(href)
-        }))
-        .filter(({ fileName }) => isImageFile(fileName))
-        .map(({ href }) => new URL(href, folderUrl).toString());
-
-      return [...new Set(imageLinks)].sort((a, b) => a.localeCompare(b));
     }
 
     function renderCategory({ name, folder }, images) {
