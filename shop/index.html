@@ -119,7 +119,21 @@
       { name: 'Models', folder: 'images/models/' }
     ];
 
-    const isImageFile = (name) => /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(name);
+    const isImageFile = (name) => /\.(png|jpe?g)$/i.test(name);
+
+    function normalizeFileName(href = '') {
+      const base = href.split('#')[0].split('?')[0].trim();
+      if (!base || base.endsWith('/')) return '';
+
+      const clean = base.replace(/^\.\//, '');
+      const fileName = clean.split('/').pop() || '';
+
+      try {
+        return decodeURIComponent(fileName);
+      } catch {
+        return fileName;
+      }
+    }
 
     async function listFolderImages(folderUrl) {
       const response = await fetch(folderUrl);
@@ -132,9 +146,15 @@
       const doc = parser.parseFromString(html, 'text/html');
       const links = [...doc.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
 
-      return links
-        .filter((href) => href && !href.endsWith('/') && isImageFile(href))
-        .map((href) => new URL(href, folderUrl).toString());
+      const imageLinks = links
+        .map((href) => ({
+          href,
+          fileName: normalizeFileName(href)
+        }))
+        .filter(({ fileName }) => isImageFile(fileName))
+        .map(({ href }) => new URL(href, folderUrl).toString());
+
+      return [...new Set(imageLinks)].sort((a, b) => a.localeCompare(b));
     }
 
     function renderCategory({ name, folder }, images) {
