@@ -673,7 +673,10 @@
       flex-wrap:wrap;
     }
     .kanbanList{display:grid;gap:10px;}
-    .kanbanItem{border:1px solid rgba(15,23,42,.12);background:#fff;border-radius:12px;padding:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+    .kanbanItem{border:1px solid rgba(15,23,42,.12);background:#fff;border-radius:12px;padding:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;}
+    .kanbanItem .actions{display:flex;align-items:center;gap:8px;}
+    .btn.delete{border-color:rgba(239,68,68,.5);color:#b91c1c;background:rgba(239,68,68,.08);box-shadow:none;padding:6px 10px;}
+    .btn.delete:hover{border-color:rgba(239,68,68,.8);background:rgba(239,68,68,.14);}
     .kanbanItem.active{ border-color: rgba(37,99,235,.55); }
     .mainBadge{font-size:11px;color:var(--muted);border:1px solid rgba(15,23,42,.12);border-radius:999px;padding:2px 7px;}
   </style>
@@ -1525,14 +1528,44 @@
       for(const b of state.boards){
         const item = document.createElement("div");
         item.className = `kanbanItem ${b.id === state.activeBoardId ? "active" : ""}`;
-        item.innerHTML = `<strong>${escapeHTML(b.name)}</strong><span class="muted">${(b.tasks||[]).length} ToDos</span>`;
+        item.innerHTML = `
+          <strong>${escapeHTML(b.name)}</strong>
+          <div class="actions">
+            <span class="muted">${(b.tasks||[]).length} ToDos</span>
+            <button class="btn delete" data-delete-board="${b.id}">Delete</button>
+          </div>
+        `;
         item.addEventListener("click", ()=>{
           state.activeBoardId = b.id;
           closeKanbanOverlay();
           render();
         });
+        const deleteBtn = item.querySelector('[data-delete-board]');
+        deleteBtn.addEventListener("click", (e)=>{
+          e.stopPropagation();
+          deleteBoard(b.id);
+        });
         list.appendChild(item);
       }
+    }
+
+    function deleteBoard(boardId){
+      const board = state.boards.find(x=>x.id===boardId);
+      if(!board) return;
+      if(state.boards.length <= 1){
+        toast("Hinweis", "Mindestens ein KANBAN muss bestehen bleiben.", "warn");
+        return;
+      }
+      const shouldDelete = window.confirm(`KANBAN "${board.name}" wirklich löschen?`);
+      if(!shouldDelete) return;
+
+      state.boards = state.boards.filter(x=>x.id!==boardId);
+      if(state.activeBoardId === boardId){
+        state.activeBoardId = state.boards[0].id;
+      }
+      renderKanbanList();
+      render();
+      toast("KANBAN gelöscht", `"${board.name}" wurde gelöscht.`, "ok");
     }
 
     function openKanbanOverlay(){
