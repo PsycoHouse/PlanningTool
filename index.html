@@ -89,7 +89,14 @@
       display:flex;
       flex-direction:column;
       gap:4px;
+      cursor:pointer;
+      border: 1px solid rgba(15,23,42,.12);
+      background:#fff;
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: 0 6px 16px rgba(2,6,23,.06);
     }
+    .title:hover{ border-color: rgba(37,99,235,.35); }
     .title h1{
       margin:0;
       font-size: 18px;
@@ -665,14 +672,18 @@
       gap: 8px;
       flex-wrap:wrap;
     }
+    .kanbanList{display:grid;gap:10px;}
+    .kanbanItem{border:1px solid rgba(15,23,42,.12);background:#fff;border-radius:12px;padding:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+    .kanbanItem.active{ border-color: rgba(37,99,235,.55); }
+    .mainBadge{font-size:11px;color:var(--muted);border:1px solid rgba(15,23,42,.12);border-radius:999px;padding:2px 7px;}
   </style>
 </head>
 
 <body>
   <header>
-    <div class="title">
+    <div class="title" id="kanbanSwitchTrigger" title="Open Kanban selection">
       <h1>Planning Tool (local, cached)</h1>
-      <p>Drag & Drop Kanban • Browser storage • Due date reminders</p>
+      <p id="activeKanbanLabel">Drag & Drop Kanban • Browser storage • Due date reminders</p>
     </div>
 
     <div class="toolbar">
@@ -792,17 +803,54 @@
     </div>
   </div>
 
+
+  <div class="overlay" id="kanbanOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="kanbanTitle">
+      <div class="modalHead">
+        <h2 id="kanbanTitle">KANBAN auswählen / erstellen</h2>
+        <button class="btn" id="btnCloseKanban">Close</button>
+      </div>
+      <div class="modalBody">
+        <div class="kanbanList" id="kanbanList"></div>
+        <hr style="border:none;border-top:1px solid rgba(15,23,42,.12);margin:10px 0;">
+        <div class="field">
+          <label for="newBoardName">Neues KANBAN Name</label>
+          <input id="newBoardName" type="text" placeholder="z. B. Team Alpha" />
+        </div>
+        <div class="field">
+          <label for="newBoardStatuses">Eigene Status (Komma-getrennt)</label>
+          <input id="newBoardStatuses" type="text" placeholder="To Do, In Progress, Review" />
+        </div>
+        <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field">
+            <label for="draftAlias">Draft Zusatzname (optional)</label>
+            <input id="draftAlias" type="text" placeholder="Stakeholder" />
+          </div>
+          <div class="field">
+            <label for="doneAlias">Done Zusatzname (optional)</label>
+            <input id="doneAlias" type="text" placeholder="Stakeholder" />
+          </div>
+        </div>
+        <p class="hint">"Draft" und "Done" sind Pflicht. Der Hauptname bleibt rechts als Badge sichtbar, Zusatzname ist frei. Ohne Zusatzname wird [Stakeholder] genutzt.</p>
+      </div>
+      <div class="modalFoot">
+        <button class="btn primary" id="btnCreateBoard">KANBAN erstellen</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toasts" id="toasts" aria-live="polite" aria-relevant="additions"></div>
 
   <input type="file" id="fileInput" accept="application/json" style="display:none" />
 
   <script>
     // ========= Config / Storage =========
-    const STORAGE_KEY = "planningTool.v1";
+    const STORAGE_KEY = "planningTool.v2";
     const FIXED_LEFT_STATUS = "Draft";
     const FIXED_RIGHT_STATUS = "Done";
     const DEFAULT_STATUSES = [FIXED_LEFT_STATUS, "To Do", "In Progress", FIXED_RIGHT_STATUS];
     const DUE_SOON_DAYS = 2; // Reminder: due in <= 2 days
+    const DEFAULT_ALIAS = "Stakeholder";
 
     const $ = (sel, el=document) => el.querySelector(sel);
 
@@ -830,22 +878,41 @@
       return Math.round(ms / (1000*60*60*24));
     }
 
+    function makeDefaultBoard(name="Default Kanban"){
+      return {
+        id: uid(),
+        name,
+        statuses: [...DEFAULT_STATUSES],
+        aliases: { [FIXED_LEFT_STATUS]: DEFAULT_ALIAS, [FIXED_RIGHT_STATUS]: DEFAULT_ALIAS },
+        tasks: []
+      };
+    }
+
     function loadState(){
       try{
         const raw = localStorage.getItem(STORAGE_KEY);
         if(!raw){
-          return { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0, theme: "light", statsMode: "week" };
+          const board = makeDefaultBoard();
+          return { boards: [board], activeBoardId: board.id, coins: 0, theme: "light", statsMode: "week" };
         }
         const data = JSON.parse(raw);
-        // basic hardening:
-        const statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
-        const tasks = Array.isArray(data.tasks) ? data.tasks : [];
         const coins = Number.isFinite(data.coins) ? Math.max(0, Math.floor(data.coins)) : 0;
         const theme = data.theme === "dark" ? "dark" : "light";
         const statsMode = data.statsMode === "month" ? "month" : "week";
-        return { statuses, tasks, coins, theme, statsMode };
+
+        if(Array.isArray(data.boards) && data.boards.length){
+          const boards = data.boards;
+          const activeBoardId = boards.some(b=>b.id===data.activeBoardId) ? data.activeBoardId : boards[0].id;
+          return { boards, activeBoardId, coins, theme, statsMode };
+        }
+
+        const legacyBoard = makeDefaultBoard("Migrated Kanban");
+        legacyBoard.statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
+        legacyBoard.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+        return { boards: [legacyBoard], activeBoardId: legacyBoard.id, coins, theme, statsMode };
       } catch {
-        return { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0, theme: "light", statsMode: "week" };
+        const board = makeDefaultBoard();
+        return { boards: [board], activeBoardId: board.id, coins: 0, theme: "light", statsMode: "week" };
       }
     }
 
@@ -855,8 +922,22 @@
 
     let state = loadState();
 
+
+    function activeBoard(){
+      let b = state.boards.find(x=>x.id===state.activeBoardId);
+      if(!b){
+        b = state.boards[0] || makeDefaultBoard();
+        if(!state.boards.length) state.boards.push(b);
+        state.activeBoardId = b.id;
+      }
+      if(!b.aliases || typeof b.aliases !== "object") b.aliases = {};
+      if(!b.aliases[FIXED_LEFT_STATUS]) b.aliases[FIXED_LEFT_STATUS] = DEFAULT_ALIAS;
+      if(!b.aliases[FIXED_RIGHT_STATUS]) b.aliases[FIXED_RIGHT_STATUS] = DEFAULT_ALIAS;
+      return b;
+    }
+
     function normalizeStatuses(){
-      const list = Array.isArray(state.statuses) ? state.statuses : [];
+      const list = Array.isArray(activeBoard().statuses) ? activeBoard().statuses : [];
       const middle = [];
 
       for(const s of list){
@@ -867,7 +948,7 @@
         if(!middle.includes(name)) middle.push(name);
       }
 
-      state.statuses = [FIXED_LEFT_STATUS, ...middle, FIXED_RIGHT_STATUS];
+      activeBoard().statuses = [FIXED_LEFT_STATUS, ...middle, FIXED_RIGHT_STATUS];
     }
 
     function applyTheme(){
@@ -887,9 +968,9 @@
     // Ensure every task has valid status:
     function normalizeTasks(){
       normalizeStatuses();
-      const s0 = state.statuses[0] || "Draft";
-      const set = new Set(state.statuses);
-      for(const t of state.tasks){
+      const s0 = activeBoard().statuses[0] || "Draft";
+      const set = new Set(activeBoard().statuses);
+      for(const t of activeBoard().tasks){
         if(!set.has(t.status)) t.status = s0;
         if(typeof t.title !== "string") t.title = "";
         if(typeof t.desc !== "string") t.desc = "";
@@ -906,18 +987,30 @@
     const columnsEl = $("#columns");
     const statusTagsEl = $("#statusTags");
 
+    function statusAlias(status){
+      if(status !== FIXED_LEFT_STATUS && status !== FIXED_RIGHT_STATUS) return "";
+      return (activeBoard().aliases?.[status] || DEFAULT_ALIAS).trim() || DEFAULT_ALIAS;
+    }
+
+    function renderActiveKanbanLabel(){
+      const lbl = $("#activeKanbanLabel");
+      if(!lbl) return;
+      lbl.textContent = `Aktiv: ${activeBoard().name}`;
+    }
+
     function render(){
       normalizeTasks();
       renderStatusTags();
       renderColumns();
       renderCoins();
+      renderActiveKanbanLabel();
       applyTheme();
       saveState();
     }
 
     function renderStatusTags(){
       statusTagsEl.innerHTML = "";
-      for(const s of state.statuses){
+      for(const s of activeBoard().statuses){
         const isFixed = s === FIXED_LEFT_STATUS || s === FIXED_RIGHT_STATUS;
         const tag = document.createElement("div");
         tag.className = "tag";
@@ -939,28 +1032,29 @@
       // update status select in modal
       const sel = $("#taskStatus");
       sel.innerHTML = "";
-      for(const s of state.statuses){
+      for(const s of activeBoard().statuses){
         const opt = document.createElement("option");
         opt.value = s;
         opt.textContent = s;
         sel.appendChild(opt);
       }
 
-      for(const status of state.statuses){
+      for(const status of activeBoard().statuses){
         const col = document.createElement("section");
         col.className = "col";
         col.dataset.status = status;
 
-        const tasks = state.tasks
+        const tasks = activeBoard().tasks
           .filter(t => t.status === status)
           .sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
 
         col.innerHTML = `
           <header>
             <div class="col-title">
-              <span>${escapeHTML(status)}</span>
+              <span>${escapeHTML((status === FIXED_LEFT_STATUS || status === FIXED_RIGHT_STATUS) ? `[${statusAlias(status)}]` : status)}</span>
               <span class="badge">${tasks.length}</span>
             </div>
+            ${(status === FIXED_LEFT_STATUS || status === FIXED_RIGHT_STATUS) ? `<span class="mainBadge">${escapeHTML(status)}</span>` : ""}
           </header>
           <div class="dropzone" data-drop-status="${escapeAttr(status)}"></div>
         `;
@@ -1089,7 +1183,7 @@
     }
 
     function moveTask(id, status){
-      const t = state.tasks.find(x=>x.id===id);
+      const t = activeBoard().tasks.find(x=>x.id===id);
       if(!t) return;
       const becameDone = trackDoneTransition(t, status);
       t.status = status;
@@ -1106,16 +1200,16 @@
         title: title || "",
         desc: desc || "",
         due: due || "",
-        status: status || (state.statuses[0] || "Draft"),
+        status: status || (activeBoard().statuses[0] || "Draft"),
         createdAt: Date.now()
       };
-      state.tasks.push(t);
+      activeBoard().tasks.push(t);
       render();
       return t.id;
     }
 
     function updateTask(id, patch){
-      const t = state.tasks.find(x=>x.id===id);
+      const t = activeBoard().tasks.find(x=>x.id===id);
       if(!t) return;
       const nextStatus = patch.status || t.status;
       const becameDone = trackDoneTransition(t, nextStatus);
@@ -1144,7 +1238,7 @@
     }
 
     function deleteTask(id, opts={}){
-      const idx = state.tasks.findIndex(x=>x.id===id);
+      const idx = activeBoard().tasks.findIndex(x=>x.id===id);
       if(idx === -1) return;
 
       // small fade/scale if we have a DOM element
@@ -1154,13 +1248,13 @@
         el.style.transform = "scale(.98)";
         el.style.opacity = "0";
         setTimeout(()=>{
-          state.tasks.splice(idx, 1);
+          activeBoard().tasks.splice(idx, 1);
           render();
         }, 170);
         return;
       }
 
-      state.tasks.splice(idx, 1);
+      activeBoard().tasks.splice(idx, 1);
       render();
     }
 
@@ -1168,8 +1262,8 @@
     function addStatus(name){
       const s = (name || "").trim();
       if(!s) return;
-      if(state.statuses.includes(s)) return toast("Info", `Status "${s}" already exists.`, "warn");
-      state.statuses.push(s);
+      if(activeBoard().statuses.includes(s)) return toast("Info", `Status "${s}" already exists.`, "warn");
+      activeBoard().statuses.push(s);
       render();
     }
 
@@ -1178,19 +1272,19 @@
         toast("Not possible", `Status "${name}" is fixed and cannot be removed.`, "warn");
         return;
       }
-      if(state.statuses.length <= 1){
+      if(activeBoard().statuses.length <= 1){
         toast("Not possible", "At least one status must exist.", "warn");
         return;
       }
-      const idx = state.statuses.indexOf(name);
+      const idx = activeBoard().statuses.indexOf(name);
       if(idx === -1) return;
 
-      const fallback = state.statuses[0] === name ? state.statuses[1] : state.statuses[0];
+      const fallback = activeBoard().statuses[0] === name ? activeBoard().statuses[1] : activeBoard().statuses[0];
       // move tasks to fallback
-      for(const t of state.tasks){
+      for(const t of activeBoard().tasks){
         if(t.status === name) t.status = fallback;
       }
-      state.statuses.splice(idx, 1);
+      activeBoard().statuses.splice(idx, 1);
       render();
       toast("Status removed", `Tasks were moved to "${fallback}".`, "warn");
     }
@@ -1216,16 +1310,16 @@
         taskTitle.value = "";
         taskDesc.value = "";
         taskDue.value = "";
-        taskStatus.value = state.statuses[0] || "Draft";
+        taskStatus.value = activeBoard().statuses[0] || "Draft";
         btnDeleteTask.style.display = "none";
       } else {
-        const t = state.tasks.find(x=>x.id===id);
+        const t = activeBoard().tasks.find(x=>x.id===id);
         if(!t) return;
         modalTitle.textContent = "Edit ToDo";
         taskTitle.value = t.title || "";
         taskDesc.value = t.desc || "";
         taskDue.value = t.due || "";
-        taskStatus.value = t.status || (state.statuses[0] || "Draft");
+        taskStatus.value = t.status || (activeBoard().statuses[0] || "Draft");
         btnDeleteTask.style.display = "inline-block";
       }
 
@@ -1275,7 +1369,7 @@
 
     btnDeleteTask.addEventListener("click", ()=>{
       if(!editingId) return;
-      const t = state.tasks.find(x=>x.id===editingId);
+      const t = activeBoard().tasks.find(x=>x.id===editingId);
       deleteTask(editingId);
       closeModal();
       toast("Deleted", t ? `"${t.title}" was removed.` : "Task removed.", "danger");
@@ -1301,12 +1395,17 @@
         const text = await file.text();
         const data = JSON.parse(text);
         if(!data || typeof data !== "object") throw new Error("Invalid JSON");
-        const statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
-        const tasks = Array.isArray(data.tasks) ? data.tasks : [];
         const coins = Number.isFinite(data.coins) ? Math.max(0, Math.floor(data.coins)) : 0;
         const theme = data.theme === "dark" ? "dark" : state.theme;
         const statsMode = data.statsMode === "month" ? "month" : "week";
-        state = { statuses, tasks, coins, theme, statsMode };
+        if(Array.isArray(data.boards) && data.boards.length){
+          state = { boards: data.boards, activeBoardId: data.activeBoardId || data.boards[0].id, coins, theme, statsMode };
+        } else {
+          const board = makeDefaultBoard("Imported Kanban");
+          board.statuses = Array.isArray(data.statuses) && data.statuses.length ? data.statuses : [...DEFAULT_STATUSES];
+          board.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+          state = { boards: [board], activeBoardId: board.id, coins, theme, statsMode };
+        }
         normalizeTasks();
         saveState();
         render();
@@ -1322,7 +1421,8 @@
       const yes = confirm("Delete all local data? (Cannot be undone)");
       if(!yes) return;
       localStorage.removeItem(STORAGE_KEY);
-      state = { statuses: [...DEFAULT_STATUSES], tasks: [], coins: 0, theme: state.theme, statsMode: "week" };
+      const board = makeDefaultBoard();
+      state = { boards: [board], activeBoardId: board.id, coins: 0, theme: state.theme, statsMode: "week" };
       render();
       toast("Reset", "Everything was reset.", "warn");
     });
@@ -1349,7 +1449,7 @@
     function renderDoneStats(){
       const counts = new Map();
       const useMonth = state.statsMode === "month";
-      for(const task of state.tasks){
+      for(const task of activeBoard().tasks){
         const dates = Array.isArray(task.doneHistory) ? task.doneHistory : [];
         const firstDoneDate = dates[0];
         if(!firstDoneDate) continue;
@@ -1414,6 +1514,63 @@
       renderDoneStats();
       saveState();
     });
+
+    // ========= Kanban selector =========
+    const kanbanOverlay = $("#kanbanOverlay");
+
+    function renderKanbanList(){
+      const list = $("#kanbanList");
+      if(!list) return;
+      list.innerHTML = "";
+      for(const b of state.boards){
+        const item = document.createElement("div");
+        item.className = `kanbanItem ${b.id === state.activeBoardId ? "active" : ""}`;
+        item.innerHTML = `<strong>${escapeHTML(b.name)}</strong><span class="muted">${(b.tasks||[]).length} ToDos</span>`;
+        item.addEventListener("click", ()=>{
+          state.activeBoardId = b.id;
+          closeKanbanOverlay();
+          render();
+        });
+        list.appendChild(item);
+      }
+    }
+
+    function openKanbanOverlay(){
+      renderKanbanList();
+      kanbanOverlay.classList.add("open");
+      kanbanOverlay.setAttribute("aria-hidden", "false");
+    }
+
+    function closeKanbanOverlay(){
+      kanbanOverlay.classList.remove("open");
+      kanbanOverlay.setAttribute("aria-hidden", "true");
+    }
+
+    function createBoardFromForm(){
+      const name = ($("#newBoardName").value || "").trim();
+      if(!name) return toast("Hinweis", "Bitte einen KANBAN Namen eingeben.", "warn");
+      const custom = ($("#newBoardStatuses").value || "").split(",").map(x=>x.trim()).filter(Boolean)
+        .filter(x=> x !== FIXED_LEFT_STATUS && x !== FIXED_RIGHT_STATUS);
+      const draftAlias = ($("#draftAlias").value || "").trim() || DEFAULT_ALIAS;
+      const doneAlias = ($("#doneAlias").value || "").trim() || DEFAULT_ALIAS;
+
+      const board = makeDefaultBoard(name);
+      board.statuses = [FIXED_LEFT_STATUS, ...[...new Set(custom)], FIXED_RIGHT_STATUS];
+      board.aliases = { [FIXED_LEFT_STATUS]: draftAlias, [FIXED_RIGHT_STATUS]: doneAlias };
+      state.boards.push(board);
+      state.activeBoardId = board.id;
+      $("#newBoardName").value = "";
+      $("#newBoardStatuses").value = "";
+      $("#draftAlias").value = "";
+      $("#doneAlias").value = "";
+      closeKanbanOverlay();
+      render();
+    }
+
+    $("#kanbanSwitchTrigger").addEventListener("click", openKanbanOverlay);
+    $("#btnCloseKanban").addEventListener("click", closeKanbanOverlay);
+    kanbanOverlay.addEventListener("click", (e)=> { if(e.target === kanbanOverlay) closeKanbanOverlay(); });
+    $("#btnCreateBoard").addEventListener("click", createBoardFromForm);
 
     // ========= Config UI =========
     $("#btnAddStatus").addEventListener("click", ()=>{
@@ -1491,7 +1648,7 @@
       const soon = [];
       const overdue = [];
 
-      for(const t of state.tasks){
+      for(const t of activeBoard().tasks){
         if(!t.due) continue;
         const due = parseISODate(t.due);
         if(!due) continue;
